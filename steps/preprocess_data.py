@@ -19,7 +19,6 @@ import os
 import json
 import argparse
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -123,7 +122,7 @@ class CyclicFeatureEngineer(IFeatureEngineer):
             elif self.column == 'month':
                 period = 12
             else:
-                period = data[self.column].max() or 1  # avoid division by zero
+                period = data[self.column].max() or 1
 
         logger.info(f"Creating cyclic features for {self.column} with period {period}")
         try:
@@ -132,6 +131,119 @@ class CyclicFeatureEngineer(IFeatureEngineer):
         except Exception as e:
             logger.error(f"Error creating cyclic features: {e}")
         return data
+
+
+class IFeatureScaler:
+    """Interface for scaling of data"""
+    def scale(self, data: pd.DataFrame, fit: bool = False) -> pd.DataFrame:
+        raise NotImplementedError
+
+
+class StandardScalerFeatureScaler(IFeatureScaler):
+    """Scales the numerical columns using StandardScaler"""
+    def __init__(self, column: str):
+        self.scaler = StandardScaler()
+        self.column = column
+        self.fitted = False
+
+    def fit(self, data: pd.DataFrame) -> None:
+        if self.column in data.columns:
+            self.scaler.fit(data[[self.column]])
+            self.fitted = True
+            logger.info(f"Fitted scaler on column {self.column}")
+        else:
+            logger.warning(f"Column '{self.column}' not found for fitting scaler.")
+
+    def transform(self, data: pd.DataFrame) -> pd.DataFrame:
+        if not self.fitted:
+            logger.error("Scaler has not been fitted yet.")
+            return data
+        if self.column in data.columns:
+            data[self.column] = self.scaler.transform(data[[self.column]])
+            logger.info(f"Transformed column {self.column}")
+        else:
+            logger.warning(f"Column '{self.column}' not found for scaling.")
+        return data
+
+    def fit_transform(self, data: pd.DataFrame) -> pd.DataFrame:
+        if self.column in data.columns:
+            data[self.column] = self.scaler.fit_transform(data[[self.column]])
+            self.fitted = True
+            logger.info(f"Fit-transformed column {self.column}")
+        else:
+            logger.warning(f"Column '{self.column}' not found for scaling.")
+        return data
+
+    def scale(self, data: pd.DataFrame, fit: bool = False) -> pd.DataFrame:
+        if fit:
+            return self.fit_transform(data)
+        else:
+            return self.transform(data)
+
+
+class ILabelEncoder:
+    """Inteface for label encoding."""
+    def encode(self, data: pd.DataFrame, fit: bool = False) -> pd.DataFrame:
+        raise NotImplementedError
+
+
+class LabelEncoderFeature(ILabelEncoder):
+    """Encodes Categorical Features using LabelEncoder"""
+    def __init__(self, column: str):
+        self.column = column
+        self.encoder = LabelEncoder()
+        self.fitted = False
+    
+    def fit(self, data: pd.DataFrame) -> None:
+        if self.column in data.columns:
+            self.encoder.fit(data[self.column])
+            self.fitted = True
+            logger.info(f"Fitted label encoder on column {self.column}")
+        else:
+            logger.warning(f"Column '{self.column}' not found for fitting label encoder.")
+    
+    def transform(self, data: pd.DataFrame) -> pd.DataFrame:
+        if not self.fitted:
+            logger.error("Label encoder has not been fitted yet.")
+            return data
+
+        if self.column in data.columns:
+            # Map known labels, unseen labels get -1
+            classes = set(self.encoder.classes_)
+            data[self.column] = data[self.column].apply(
+                lambda x: self.encoder.transform([x])[0] if x in classes else -1
+            )
+            logger.info(f"Transformed column {self.column} (unseen labels mapped to -1)")
+        else:
+            logger.warning(f"Column '{self.column}' not found for encoding.")
+        return data
+    
+    def fit_transform(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Fits and transforms the data using LabelEncoder"""
+        if self.column in data.columns:
+            data[self.column] = self.encoder.fit_transform(data[self.column])
+            self.fitted = True
+            logger.info(f"Fit-transformed column {self.column}")
+        else:
+            logger.warning(f"Column '{self.column}' not found for encoding.")
+        return data
+
+    def encode(self, data: pd.DataFrame, fit: bool = False) -> pd.DataFrame:
+        """Encodes the data using LabelEncoder"""
+        if fit:
+            data = self.fit_transform(data)
+            mappings = {str(cls): int(idx) for idx, cls in enumerate(self.encoder.classes_)}
+            mapping_dir = (Path(__file__).parent / '../data/mappings').resolve()
+            mapping_dir.mkdir(parents=True, exist_ok=True)
+            mapping_file = mapping_dir / f"{self.column}_mapping.json"
+
+            with open(mapping_file, 'w') as f:
+                json.dump(mappings, f)
+
+            logger.info(f"Saved mapping for {self.column} to {mapping_file}")
+            return data
+        else:
+            return self.transform(data)
 
 
 class IDataSplitter:
@@ -199,6 +311,8 @@ class DataPreprocessor:
         feature_engineers: List[IFeatureEngineer],
         column_selector: ColumnSelector,
         splitter: IDataSplitter,
+        scaler: IFeatureScaler,
+        encoder: List[ILabelEncoder],
         saver: IDataSaver,
         output_dir: str
     ):
@@ -223,6 +337,15 @@ class DataPreprocessor:
             logger.info(f"Head of the preprocessed data:\n{data.head()}")
             splits = self.splitter.split(data)
             for split_name, split_data in splits.items():
+                if split_name == 'train' or split_name == 'val':
+                    split_data = scaler.scale(split_data, fit=True)
+                    for encoder in encoders:
+                        split_data = encoder.encode(split_data, fit=True)
+                else:
+                    split_data = scaler.scale(split_data, fit=False)
+                    for encoder in encoders:
+                        split_data = encoder.encode(split_data, fit=False)
+
                 split_file = os.path.join(self.output_dir, f"{split_name}.csv")
                 self.saver.save(split_data, split_file)
             return data
@@ -233,8 +356,22 @@ class DataPreprocessor:
 
 if __name__ == "__main__":
     # Define input and output paths
-    input_file = 'data/train.csv'
-    output_dir = 'data/processed'
+    argparser = argparse.ArgumentParser(description="Data Preprocessing Script for Time Series Forecasting")
+    argparser.add_argument(
+        "--input_file",
+        type=str,
+        default='data/train.csv',
+        help="Path to the input CSV file, e.g 'data/train.csv'"
+    )
+    argparser.add_argument(
+        "--output_dir",
+        type=str,
+        default='data/processed',
+        help="Directory to save the processed data, e.g 'data/processed'"
+    )
+    args = argparser.parse_args()
+    input_file = args.input_file
+    output_dir = args.output_dir
 
     # List of required columns
     cols = [
@@ -254,10 +391,18 @@ if __name__ == "__main__":
     feature_engineers = [
         DateTimeFeatureEngineer('Ship Date'),
         CyclicFeatureEngineer('dayofweek'),
-        CyclicFeatureEngineer('month')
+        CyclicFeatureEngineer('month'),
     ]
     column_selector = ColumnSelector(cols)
     splitter = TrainValTestSplitter()
+    scaler = StandardScalerFeatureScaler('Sales')
+    encoders = [
+        LabelEncoderFeature('Sub-Category'),
+        LabelEncoderFeature('Product Name'),
+        LabelEncoderFeature('Customer Name'),
+        LabelEncoderFeature('State'),
+        LabelEncoderFeature('City')
+    ]
     saver = CSVDataSaver()
 
     preprocessor = DataPreprocessor(
@@ -266,6 +411,8 @@ if __name__ == "__main__":
         feature_engineers=feature_engineers,
         column_selector=column_selector,
         splitter=splitter,
+        scaler=scaler,
+        encoder=encoders,
         saver=saver,
         output_dir=output_dir
     )
