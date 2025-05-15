@@ -256,9 +256,23 @@ class TrainValTestSplitter(IDataSplitter):
     """Splits data into train, validation, and test sets."""
     def split(self, data: pd.DataFrame, test_size: float = 0.2) -> Dict[str, pd.DataFrame]:
         logger.info(f"Splitting data into train, val, and test sets with test size {test_size}")
+        stratify_col = "Product Name"
         try:
-            train_data, test_data = train_test_split(data, test_size=test_size, random_state=42)
-            train_data, val_data = train_test_split(train_data, test_size=test_size, random_state=42)
+            # Check if stratification is possible
+            if stratify_col in data.columns and data[stratify_col].value_counts().min() >= 2:
+                stratify = data[stratify_col]
+                logger.info(f"Using stratified split on '{stratify_col}'")
+            else:
+                stratify = None
+                logger.warning(f"Not enough samples per class in '{stratify_col}' for stratification. Proceeding without stratify.")
+
+            train_data, test_data = train_test_split(data, test_size=test_size/2, stratify=stratify, random_state=42)
+            if stratify is not None:
+                stratify_train = train_data[stratify_col] if train_data[stratify_col].value_counts().min() >= 2 else None
+            else:
+                stratify_train = None
+
+            train_data, val_data = train_test_split(train_data, test_size=test_size, stratify=stratify_train, random_state=42)
             logger.info(f"Train shape: {train_data.shape}, Validation shape: {val_data.shape}, Test shape: {test_data.shape}")
             return {'train': train_data, 'val': val_data, 'test': test_data}
         except Exception as e:
@@ -337,7 +351,7 @@ class DataPreprocessor:
             logger.info(f"Head of the preprocessed data:\n{data.head()}")
             splits = self.splitter.split(data)
             for split_name, split_data in splits.items():
-                if split_name == 'train' or split_name == 'val':
+                if split_name == 'train':
                     split_data = scaler.scale(split_data, fit=True)
                     for encoder in encoders:
                         split_data = encoder.encode(split_data, fit=True)
