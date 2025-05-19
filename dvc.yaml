@@ -1,0 +1,23 @@
+stages:
+  preprocess:
+    cmd: python3 steps/preprocess_data.py
+    deps:
+    - data/train.csv
+    - steps/preprocess_data.py
+    outs:
+    - data/mappings/City_mapping.json
+    - data/mappings/Customer Name_mapping.json
+    - data/mappings/Product Name_mapping.json
+    - data/mappings/State_mapping.json
+    - data/mappings/Sub-Category_mapping.json
+    - data/processed/preprocessed_sales_data.csv
+    - data/processed/test.csv
+    - data/processed/train.csv
+    - data/processed/val.csv
+    - logs/preprocess_data.log/
+    - models/encoders/City_encoder.pkl
+    - models/encoders/Customer Name_encoder.pkl
+    - models/encoders/Product Name_encoder.pkl
+    - models/encoders/State_encoder.pkl
+    - models/encoders/Sub-Category_encoder.pkl
+    - models/scalers/Sales_scaler.pkl
