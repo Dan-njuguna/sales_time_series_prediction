@@ -51,7 +51,7 @@ stages:
       size: 126238
     - path: logs/preprocess_data.log/
       hash: md5
-      md5: cd4f78c53c9cd123bfc119a71849b3bf
+      md5: 894bd3eee53e18c77260104907888b34
       size: 4625
     - path: models/encoders/City_encoder.pkl
       hash: md5
