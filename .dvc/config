@@ -1,5 +1,5 @@
 [core]
     remote = localremote
-    autostage = true
+    autostage = false
 ['remote "localremote"']
     url = /mnt/shared/dvcstore
