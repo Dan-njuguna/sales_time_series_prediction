@@ -1,0 +1,79 @@
+schema: '2.0'
+stages:
+  preprocess:
+    cmd: python3 steps/preprocess_data.py
+    deps:
+    - path: data/train.csv
+      hash: md5
+      md5: 3459dd58d4fc74f6ba8922499ded7d78
+      size: 2129689
+    - path: steps/preprocess_data.py
+      hash: md5
+      md5: 87e5ee3cf7f7024b40928fb4175d7484
+      size: 17027
+      isexec: true
+    outs:
+    - path: data/mappings/City_mapping.json
+      hash: md5
+      md5: 2e7f1a5f2c9e9af07e3295da3c90e61c
+      size: 8843
+    - path: data/mappings/Customer Name_mapping.json
+      hash: md5
+      md5: 50257806e6d70cc0fe21606c26a64fc3
+      size: 17252
+    - path: data/mappings/Product Name_mapping.json
+      hash: md5
+      md5: 816a20b5c4742fc8154ced930640cead
+      size: 84818
+    - path: data/mappings/State_mapping.json
+      hash: md5
+      md5: 555728e293e79816bf8bd3b3ab3d4a56
+      size: 797
+    - path: data/mappings/Sub-Category_mapping.json
+      hash: md5
+      md5: d0363805d9cd7870a9818ef67db934cd
+      size: 254
+    - path: data/processed/preprocessed_sales_data.csv
+      hash: md5
+      md5: bf3e72e3a5107cfb919f68741943c3b7
+      size: 1192823
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 6871b6e4a859798e924b9ba96f393403
+      size: 70175
+    - path: data/processed/train.csv
+      hash: md5
+      md5: 41eb9f7ef1fa69cd2ae0bfa179b076dc
+      size: 508416
+    - path: data/processed/val.csv
+      hash: md5
+      md5: a883c4442bde35ba7c202d7719deeae0
+      size: 126238
+    - path: logs/preprocess_data.log/
+      hash: md5
+      md5: cd4f78c53c9cd123bfc119a71849b3bf
+      size: 4625
+    - path: models/encoders/City_encoder.pkl
+      hash: md5
+      md5: e1dc04f0fa95b0782cdc56d67cff3d9e
+      size: 6191
+    - path: models/encoders/Customer Name_encoder.pkl
+      hash: md5
+      md5: 474af8ae13b7709001a3281db5e7b29a
+      size: 12842
+    - path: models/encoders/Product Name_encoder.pkl
+      hash: md5
+      md5: 00f3b013b2292d2a4a6ccdf47b492afe
+      size: 72923
+    - path: models/encoders/State_encoder.pkl
+      hash: md5
+      md5: c4c9ff0a952887f08c88912fdf79711f
+      size: 810
+    - path: models/encoders/Sub-Category_encoder.pkl
+      hash: md5
+      md5: ea7bd564b85ea2ed4a07f5771dfc6d1c
+      size: 422
+    - path: models/scalers/Sales_scaler.pkl
+      hash: md5
+      md5: d4824bbd02b5b4546a470d89a930ebde
+      size: 129
