@@ -24,6 +24,7 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 import numpy as np
+import pickle
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 
@@ -176,6 +177,15 @@ class StandardScalerFeatureScaler(IFeatureScaler):
 
     def scale(self, data: pd.DataFrame, fit: bool = False) -> pd.DataFrame:
         if fit:
+            logger.info(f"Saving StandardScaler file ...")
+            scalers_dir = (Path(__file__).parent / "../models/scalers").resolve()
+            scalers_dir.mkdir(parents=True, exist_ok=True)
+
+            scaler_file = scalers_dir / f"{self.column}_scaler.pkl"
+            with open(scaler_file, "wb") as f:
+                pickle.dump(scaler_file, f)
+            
+            logger.info(f"Saved standardscaler for {self.column} to {scaler_file}")
             return self.fit_transform(data)
         else:
             return self.transform(data)
@@ -237,10 +247,17 @@ class LabelEncoderFeature(ILabelEncoder):
             mapping_dir.mkdir(parents=True, exist_ok=True)
             mapping_file = mapping_dir / f"{self.column}_mapping.json"
 
+            encoder_dir = (Path(__file__).parent / '../models/encoders').resolve()
+            encoder_dir.mkdir(parents=True, exist_ok=True)
+            encoder_file = encoder_dir / f"{self.column}_encoder.pkl"
+
             with open(mapping_file, 'w') as f:
                 json.dump(mappings, f)
+            
+            with open(encoder_file, "wb") as f:
+                pickle.dump(self.encoder, f)
 
-            logger.info(f"Saved mapping for {self.column} to {mapping_file}")
+            logger.info(f"Saved mapping for {self.column} to {mapping_file} and encoder to {encoder_file}")
             return data
         else:
             return self.transform(data)
