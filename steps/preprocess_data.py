@@ -170,6 +170,15 @@ class StandardScalerFeatureScaler(IFeatureScaler):
         if self.column in data.columns:
             data[self.column] = self.scaler.fit_transform(data[[self.column]])
             self.fitted = True
+            logger.info(f"Saving StandardScaler file ...")
+            scalers_dir = (Path(__file__).parent / "../models/scalers").resolve()
+            scalers_dir.mkdir(parents=True, exist_ok=True)
+
+            scaler_file = scalers_dir / f"{self.column}_scaler.pkl"
+            with open(scaler_file, "wb") as f:
+                pickle.dump(self.scaler, f)
+            
+            logger.info(f"Saved standardscaler for {self.column} to {scaler_file}")
             logger.info(f"Fit-transformed column {self.column}")
         else:
             logger.warning(f"Column '{self.column}' not found for scaling.")
@@ -177,15 +186,6 @@ class StandardScalerFeatureScaler(IFeatureScaler):
 
     def scale(self, data: pd.DataFrame, fit: bool = False) -> pd.DataFrame:
         if fit:
-            logger.info(f"Saving StandardScaler file ...")
-            scalers_dir = (Path(__file__).parent / "../models/scalers").resolve()
-            scalers_dir.mkdir(parents=True, exist_ok=True)
-
-            scaler_file = scalers_dir / f"{self.column}_scaler.pkl"
-            with open(scaler_file, "wb") as f:
-                pickle.dump(scaler_file, f)
-            
-            logger.info(f"Saved standardscaler for {self.column} to {scaler_file}")
             return self.fit_transform(data)
         else:
             return self.transform(data)
