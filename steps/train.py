@@ -29,16 +29,12 @@ os.makedirs('../logs', exist_ok=True)
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-log_file_path = Path(__file__).parent / '../logs/train_pipeline.log'
+log_file_path = Path(__file__).parent / '../logs/train.log'
 file_handler = logging.FileHandler(log_file_path)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
-# Set these based on your data shape
-INPUT_DIM = 24
-OUTPUT_DIM = 3
-HIDDEN_DIM = 32
 BATCH_SIZE = 16
 
 
@@ -123,40 +119,3 @@ def train_model(model, train_loader, criterion, optimizer, num_epochs=10):
                 pbar.set_postfix({'loss': running_loss / (pbar.n + 1)})
         logger.info(f"Epoch {epoch + 1}/{num_epochs}, Loss: {running_loss / len(train_loader)}")
         logger.info(f"Model saved at epoch {epoch + 1}")
-
-
-if __name__ == "__main__":
-    # TODO: Load pandas dataset
-    csv_path = Path(__file__).parent / '../data/processed/train.csv'
-
-    try:
-        df = pd.read_csv(csv_path)
-        data = df.values
-        logger.info(f"Data loaded successfully from {csv_path}")
-
-        input_window = INPUT_DIM
-        output_window = OUTPUT_DIM
-        target_cols = [1, -1]
-
-        dataset = TimeSeriesDataset(data, input_window, output_window, target_indices=target_cols)
-        train_loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
-        logger.info(f"Data loaded successfully from {csv_path}")
-
-        model = TimeSeriesModel(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
-        criterion = nn.MSELoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-        train_model(model, train_loader, criterion, optimizer, num_epochs=10)
-        logger.info("Training completed successfully")
-    except FileNotFoundError as e:
-        logger.error(f"File not found: {e}")
-    except Exception as e:
-        logger.error(f"An error occurred: {e}")
-        raise
-    finally:
-        logger.info("Training pipeline finished")
-        # Ensure models directory exists before saving
-        os.makedirs('../models', exist_ok=True)
-        torch.save(model.state_dict(), '../models/time_series_model.pth')
-        logger.info("Model saved successfully")
-        logger.info("Model saved successfully")
