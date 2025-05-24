@@ -70,12 +70,29 @@ class IDataCleaner:
 
 
 class BasicDataCleaner(IDataCleaner):
-    """Removes duplicates and null values."""
+    """Cleans time series data by removing duplicates, NaNs, and setting datetime index."""
+    def __init__(self, column: str):
+        super().__init__()
+        self.date_column = column
+
     def clean(self, data: pd.DataFrame) -> pd.DataFrame:
         logger.info("Cleaning data")
         initial_shape = data.shape
+
         data = data.drop_duplicates()
         data = data.dropna()
+
+        if self.date_column in data.columns:
+            try:
+                data[self.date_column] = pd.to_datetime(data[self.date_column], dayfirst=True)
+                data["Date"] = data[self.date_column]
+            except Exception as e:
+                logger.error(f"Failed to convert '{self.date_column}' to datetime", exc_info=True)
+                raise
+
+            data = data.sort_values(self.date_column, ascending=True)
+            data = data.set_index(self.date_column)
+
         logger.info(f"Data cleaned: {initial_shape} -> {data.shape}")
         return data
 
@@ -98,6 +115,7 @@ class DateTimeFeatureEngineer(IFeatureEngineer):
                 data[self.date_column] = pd.to_datetime(data[self.date_column], dayfirst=True)
                 data['dayofweek'] = data[self.date_column].dt.dayofweek
                 data['month'] = data[self.date_column].dt.month
+                data['year'] = data[self.date_column].dt.year
             except Exception as e:
                 logger.error(f"Error creating datetime features: {e}")
         else:
@@ -186,6 +204,7 @@ class StandardScalerFeatureScaler(IFeatureScaler):
 
     def scale(self, data: pd.DataFrame, fit: bool = False) -> pd.DataFrame:
         if fit:
+            data = data.copy()
             return self.fit_transform(data)
         else:
             return self.transform(data)
@@ -241,6 +260,7 @@ class LabelEncoderFeature(ILabelEncoder):
     def encode(self, data: pd.DataFrame, fit: bool = False) -> pd.DataFrame:
         """Encodes the data using LabelEncoder"""
         if fit:
+            data = data.copy()
             data = self.fit_transform(data)
             mappings = {str(cls): int(idx) for idx, cls in enumerate(self.encoder.classes_)}
             mapping_dir = (Path(__file__).parent / '../data/mappings').resolve()
@@ -269,31 +289,26 @@ class IDataSplitter:
         raise NotImplementedError
 
 
-class TrainValTestSplitter(IDataSplitter):
-    """Splits data into train, validation, and test sets."""
+class TrainTestSplitter(IDataSplitter):
+    """Splits data into train and test sets."""
     def split(self, data: pd.DataFrame, test_size: float = 0.2) -> Dict[str, pd.DataFrame]:
-        logger.info(f"Splitting data into train, val, and test sets with test size {test_size}")
-        stratify_col = "Product Name"
+        logger.info(f"Splitting data into train and test sets with test size {test_size}")
         try:
-            # Check if stratification is possible
-            if stratify_col in data.columns and data[stratify_col].value_counts().min() >= 2:
-                stratify = data[stratify_col]
-                logger.info(f"Using stratified split on '{stratify_col}'")
-            else:
-                stratify = None
-                logger.warning(f"Not enough samples per class in '{stratify_col}' for stratification. Proceeding without stratify.")
+            data_len: int = len(data)
+            test_len: int = int(data_len * test_size)
+            
+            logger.info(f"Splitting time series data into train and test Splits with test length {test_len}")
+            train_set = data.iloc[:-test_len]
+            test_set = data.iloc[-test_len:]
 
-            train_data, test_data = train_test_split(data, test_size=test_size/2, stratify=stratify, random_state=42)
-            if stratify is not None:
-                stratify_train = train_data[stratify_col] if train_data[stratify_col].value_counts().min() >= 2 else None
-            else:
-                stratify_train = None
+            result = {
+                "train": train_set,
+                "test": test_set
+            }
+            return result
 
-            train_data, val_data = train_test_split(train_data, test_size=test_size, stratify=stratify_train, random_state=42)
-            logger.info(f"Train shape: {train_data.shape}, Validation shape: {val_data.shape}, Test shape: {test_data.shape}")
-            return {'train': train_data, 'val': val_data, 'test': test_data}
         except Exception as e:
-            logger.error(f"Error splitting data: {e}")
+            logger.error(f"Failed to split the data to Train and test sets")
             raise
 
 
@@ -407,25 +422,30 @@ if __name__ == "__main__":
     # List of required columns
     cols = [
         'Sub-Category',
-        'Product Name',
         'dayofweek_cos',
+        'dayofweek_sin',
         'Customer Name',
         'State',
+        'year_cos',
+        'year_sin',
         'City',
         'month_cos',
+        'month_sin',
+        'Product Name',
         'Sales'
     ]
 
     # Compose pipeline
     loader = CSVDataLoader(input_file)
-    cleaner = BasicDataCleaner()
+    cleaner = BasicDataCleaner("Ship Date")
     feature_engineers = [
-        DateTimeFeatureEngineer('Ship Date'),
+        DateTimeFeatureEngineer('Date'),
         CyclicFeatureEngineer('dayofweek'),
         CyclicFeatureEngineer('month'),
+        CyclicFeatureEngineer('year')
     ]
     column_selector = ColumnSelector(cols)
-    splitter = TrainValTestSplitter()
+    splitter = TrainTestSplitter()
     scaler = StandardScalerFeatureScaler('Sales')
     encoders = [
         LabelEncoderFeature('Sub-Category'),
